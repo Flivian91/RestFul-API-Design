@@ -9,9 +9,50 @@ import { NextResponse } from "next/server";
 
 export async function GET(req) {
   try {
+    const { searchParams } = new URL(req.url);
+    const searchKeyword = searchParams.get("keywords");
+    const startDate = searchParams.get("startDate");
+    const endDate = searchParams.get("endDate");
+    const page = Number(searchParams.get("page" || "1"));
+    const limit = Number(searchParams.get("limit" || "10"));
+
     // get all Blogs
     await connectDB();
-    const blogs = await Blog.find();
+    const filter = {};
+    // Search by Keywords
+    if (searchKeyword) {
+      filter.$or = [
+        {
+          title: { $regex: searchKeyword, $options: "i" },
+        },
+        {
+          description: { $regex: searchKeyword, $options: "i" },
+        },
+      ];
+    }
+    // Filter
+    if (startDate && endDate) {
+      filter.createdAt = {
+        $gte: new Date(startDate),
+        $lte: new Date(endDate),
+      };
+    } else if (startDate) {
+      filter.createdAt = {
+        $gte: new Date(startDate),
+      };
+    } else if (endDate) {
+      filter.createdAt = {
+        $lte: new Date(endDate),
+      };
+    }
+
+    // Pagination
+    const skip = (page - 1) * limit;
+
+    const blogs = await Blog.find(filter)
+      .sort({ createdAt: "asc" })
+      .skip(skip)
+      .limit(limit);
     return NextResponse.json(
       { status: "success", data: blogs },
       { status: 200 }
